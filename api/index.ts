@@ -12,12 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // but for now let's just use the local file. Note that Vercel filesystem is ephemeral.
 const dbPath = process.env.NODE_ENV === 'production' 
   ? path.join('/tmp', 'database.db')
-  : path.join(__dirname, 'database.db');
-
-// Copy initial database to /tmp if it doesn't exist (for Vercel)
-if (process.env.NODE_ENV === 'production' && !path.join('/tmp', 'database.db')) {
-  // This is a bit complex for a simple script, but usually Vercel is not the best for SQLite.
-}
+  : path.join(__dirname, '..', 'database.db');
 
 let db: any = null;
 
@@ -68,8 +63,6 @@ async function initDatabase() {
     }
   } catch (error) {
     console.error("Database initialization failed:", error);
-    // Fallback or mock db if needed, but for now we just log it.
-    // This prevents the whole server from crashing if SQLite fails on Vercel.
   }
 }
 
@@ -86,7 +79,7 @@ async function startServer() {
       const adminPass = process.env.ADMIN_PASS || "LCIF03";
 
       if (username?.trim() === adminUser && password?.trim() === adminPass) {
-        res.json({ success: true, token: "admin-token" }); // Simple token for demo
+        res.json({ success: true, token: "admin-token" });
       } else {
         res.status(401).json({ success: false, message: "Identifiants incorrects" });
       }
@@ -96,7 +89,6 @@ async function startServer() {
     }
   });
 
-  // Middleware to check auth
   const authMiddleware = (req: any, res: any, next: any) => {
     const token = req.headers.authorization;
     if (token === "admin-token") {
@@ -106,7 +98,6 @@ async function startServer() {
     }
   };
 
-  // API Routes
   app.get("/api/links", (req, res) => {
     if (!db) return res.json([]);
     const links = db.prepare("SELECT * FROM links ORDER BY order_index ASC").all();
@@ -156,7 +147,6 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
