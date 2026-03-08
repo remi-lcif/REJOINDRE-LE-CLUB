@@ -42,6 +42,7 @@ async function initDatabase() {
       INSERT OR IGNORE INTO settings (key, value) VALUES ('bio', 'Découvrez le futur de l''immobilier.');
       INSERT OR IGNORE INTO settings (key, value) VALUES ('profile_image', 'https://res.cloudinary.com/dji8akleo/image/upload/v1772999427/3_quhn7t.png');
       INSERT OR IGNORE INTO settings (key, value) VALUES ('instagram_url', 'https://www.instagram.com/leclubimmobilierfrancais/');
+      INSERT OR IGNORE INTO settings (key, value) VALUES ('linkedin_url', 'https://www.linkedin.com/company/leclubimmobilierfran%C3%A7ais');
     `);
 
     // Seed initial data if empty

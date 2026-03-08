@@ -30,6 +30,7 @@ interface SettingsData {
   bio: string;
   profile_image: string;
   instagram_url: string;
+  linkedin_url: string;
 }
 
 export default function App() {
@@ -38,7 +39,8 @@ export default function App() {
     title: 'le club immobilier français',
     bio: 'Découvrez le futur de l\'immobilier.',
     profile_image: 'https://res.cloudinary.com/dji8akleo/image/upload/v1772999427/3_quhn7t.png',
-    instagram_url: 'https://www.instagram.com/leclubimmobilierfrancais/'
+    instagram_url: 'https://www.instagram.com/leclubimmobilierfrancais/',
+    linkedin_url: 'https://www.linkedin.com/company/leclubimmobilierfran%C3%A7ais'
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin-token'));
@@ -249,9 +251,11 @@ export default function App() {
 
           {/* Social Icons */}
           <div className="flex gap-6 mb-10">
-            <a href="https://www.linkedin.com/company/leclubimmobilierfran%C3%A7ais" target="_blank" rel="noopener noreferrer" className="text-[#1a3a6c] hover:scale-110 transition-transform">
-              <Linkedin className="w-8 h-8" />
-            </a>
+            {settings.linkedin_url && (
+              <a href={settings.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-[#1a3a6c] hover:scale-110 transition-transform">
+                <Linkedin className="w-8 h-8" />
+              </a>
+            )}
             {settings.instagram_url && (
               <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" className="text-[#1a3a6c] hover:scale-110 transition-transform">
                 <Instagram className="w-8 h-8" />
@@ -540,6 +544,16 @@ export default function App() {
                     onChange={e => setSettingsForm({...settingsForm, instagram_url: e.target.value})}
                     className="w-full px-4 py-3 bg-[#f5f5f0] rounded-lg text-sm outline-none focus:ring-2 ring-[#1a3a6c]/20"
                     placeholder="https://www.instagram.com/votrecompte"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Lien LinkedIn</label>
+                  <input 
+                    type="text" 
+                    value={settingsForm.linkedin_url}
+                    onChange={e => setSettingsForm({...settingsForm, linkedin_url: e.target.value})}
+                    className="w-full px-4 py-3 bg-[#f5f5f0] rounded-lg text-sm outline-none focus:ring-2 ring-[#1a3a6c]/20"
+                    placeholder="https://www.linkedin.com/company/votrecompte"
                   />
                 </div>
               </div>
