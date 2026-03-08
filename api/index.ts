@@ -45,16 +45,24 @@ async function initDatabase() {
       INSERT OR IGNORE INTO settings (key, value) VALUES ('linkedin_url', 'https://www.linkedin.com/company/leclubimmobilierfran%C3%A7ais');
     `);
 
-    // Seed initial data if empty
-    const linkCount = db.prepare("SELECT COUNT(*) as count FROM links").get() as { count: number };
-    if (linkCount.count === 0) {
-      const insertLink = db.prepare("INSERT INTO links (title, url, image_url, order_index) VALUES (?, ?, ?, ?)");
-      insertLink.run("Lundi 9 mars 18h30", "https://events.teams.microsoft.com/event/b16b3ad0-6be4-4fab-98f2-d2fcf40fcd25@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", null, 0);
-      insertLink.run("Mardi 10 Mars 13h", "https://events.teams.microsoft.com/event/52798295-e55b-47d5-8d1e-f8e1bae24130@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", null, 1);
-      insertLink.run("Mercredi 11 Mars 17h30", "https://events.teams.microsoft.com/event/d65e6c33-9542-4b7b-b0c0-384bd1405496@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", null, 2);
-      insertLink.run("Jeudi 12 Mars 19h", "https://events.teams.microsoft.com/event/dfe315b9-2b20-4fb1-89fa-c8b0e806d538@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", null, 3);
-      insertLink.run("Réussir dans l'immobilier avec le club🏠", "https://youtube.com/shorts/-YCBifslVsA?feature=share", "https://res.cloudinary.com/dji8akleo/image/upload/v1773000626/14_by2bos.jpg", 4);
-    }
+    // Seed initial data if empty or missing specific items
+    const seedLinks = [
+      { title: "Lundi 9 mars 18h30", url: "https://events.teams.microsoft.com/event/b16b3ad0-6be4-4fab-98f2-d2fcf40fcd25@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", image_url: null, order_index: 0 },
+      { title: "Mardi 10 Mars 13h", url: "https://events.teams.microsoft.com/event/52798295-e55b-47d5-8d1e-f8e1bae24130@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", image_url: null, order_index: 1 },
+      { title: "Mercredi 11 Mars 17h30", url: "https://events.teams.microsoft.com/event/d65e6c33-9542-4b7b-b0c0-384bd1405496@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", image_url: null, order_index: 2 },
+      { title: "Jeudi 12 Mars 19h", url: "https://events.teams.microsoft.com/event/dfe315b9-2b20-4fb1-89fa-c8b0e806d538@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", image_url: null, order_index: 3 },
+      { title: "Réussir dans l'immobilier avec le club🏠", url: "https://youtube.com/shorts/-YCBifslVsA?feature=share", image_url: "https://res.cloudinary.com/dji8akleo/image/upload/v1773000626/14_by2bos.jpg", order_index: 4 }
+    ];
+
+    const checkLink = db.prepare("SELECT id FROM links WHERE url = ?");
+    const insertLink = db.prepare("INSERT INTO links (title, url, image_url, order_index) VALUES (?, ?, ?, ?)");
+
+    seedLinks.forEach(link => {
+      const existing = checkLink.get(link.url);
+      if (!existing) {
+        insertLink.run(link.title, link.url, link.image_url, link.order_index);
+      }
+    });
   } catch (error: any) {
     console.error("Database initialization failed:", error);
     dbError = error.message;
@@ -75,14 +83,13 @@ app.use(async (req, res, next) => {
 // Auth Route
 app.post("/api/login", (req, res) => {
   try {
-    const { username, password } = req.body;
-    const adminUser = process.env.ADMIN_USER || "leclubimmo";
-    const adminPass = process.env.ADMIN_PASS || "LCIF03";
+    const { password } = req.body;
+    const adminPass = "immo03";
 
-    if (username?.trim() === adminUser && password?.trim() === adminPass) {
+    if (password?.trim() === adminPass) {
       res.json({ success: true, token: "admin-token" });
     } else {
-      res.status(401).json({ success: false, message: "Identifiants incorrects" });
+      res.status(401).json({ success: false, message: "Mot de passe incorrect" });
     }
   } catch (error) {
     console.error("Login error:", error);
@@ -139,12 +146,13 @@ app.get("/api/settings", (req, res) => {
 
 app.put("/api/settings", authMiddleware, (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
-  const { title, bio, profile_image, instagram_url } = req.body;
+  const { title, bio, profile_image, instagram_url, linkedin_url } = req.body;
   const update = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
   if (title !== undefined) update.run("title", title);
   if (bio !== undefined) update.run("bio", bio);
   if (profile_image !== undefined) update.run("profile_image", profile_image);
   if (instagram_url !== undefined) update.run("instagram_url", instagram_url);
+  if (linkedin_url !== undefined) update.run("linkedin_url", linkedin_url);
   res.json({ success: true });
 });
 

@@ -45,7 +45,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin-token'));
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ password: '' });
   const [loginError, setLoginError] = useState('');
   const [isEditing, setIsEditing] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ title: '', url: '', image_url: '' });
@@ -91,7 +91,7 @@ export default function App() {
         localStorage.setItem('admin-token', data.token);
         setIsAdmin(true);
         setIsLoginModalOpen(false);
-        setLoginForm({ username: '', password: '' });
+        setLoginForm({ password: '' });
       } else {
         setLoginError(data.message || 'Erreur de connexion');
       }
@@ -454,16 +454,6 @@ export default function App() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Identifiant</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={loginForm.username}
-                    onChange={e => setLoginForm({...loginForm, username: e.target.value})}
-                    className="w-full px-4 py-3 bg-[#f5f5f0] rounded-lg text-sm outline-none focus:ring-2 ring-[#1a3a6c]/20"
-                  />
-                </div>
-                <div className="space-y-2">
                   <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Mot de passe</label>
                   <input 
                     type="password" 
@@ -471,6 +461,7 @@ export default function App() {
                     value={loginForm.password}
                     onChange={e => setLoginForm({...loginForm, password: e.target.value})}
                     className="w-full px-4 py-3 bg-[#f5f5f0] rounded-lg text-sm outline-none focus:ring-2 ring-[#1a3a6c]/20"
+                    placeholder="Entrez le mot de passe"
                   />
                 </div>
                 <button 
