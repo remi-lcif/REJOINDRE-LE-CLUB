@@ -8,18 +8,19 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// In Vercel, we might need to use /tmp for the database if we want to write to it,
-// but for now let's just use the local file. Note that Vercel filesystem is ephemeral.
+// In Vercel, we must use /tmp for the database if we want to write to it.
 const dbPath = process.env.NODE_ENV === 'production' 
   ? path.join('/tmp', 'database.db')
   : path.join(__dirname, '..', 'database.db');
 
 let db: any = null;
+let dbError: string | null = null;
 
 async function initDatabase() {
   try {
     const Database = (await import("better-sqlite3")).default;
     db = new Database(dbPath);
+    console.log("Database connected at:", dbPath);
     
     // Initialize database
     db.exec(`
@@ -53,123 +54,111 @@ async function initDatabase() {
       insertLink.run("Jeudi 12 Mars 19h", "https://events.teams.microsoft.com/event/dfe315b9-2b20-4fb1-89fa-c8b0e806d538@0f7a9099-2bcb-4ce0-b36f-a8b025d7c5f7", null, 3);
       insertLink.run("Réussir dans l'immobilier avec le club🏠", "https://youtube.com/shorts/-YCBifslVsA?feature=share", "https://res.cloudinary.com/dji8akleo/image/upload/v1773000626/14_by2bos.jpg", 4);
     }
+  } catch (error: any) {
+    console.error("Database initialization failed:", error);
+    dbError = error.message;
+  }
+}
 
-    const settingsCount = db.prepare("SELECT COUNT(*) as count FROM settings").get() as { count: number };
-    if (settingsCount.count === 0) {
-      const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-      insertSetting.run("title", "le club immobilier français");
-      insertSetting.run("bio", "Découvrez le futur de l'immobilier.");
-      insertSetting.run("profile_image", "https://res.cloudinary.com/dji8akleo/image/upload/v1772999427/3_quhn7t.png");
+const app = express();
+app.use(express.json());
+
+// Initialize DB on first request or at startup
+const dbPromise = initDatabase();
+
+app.use(async (req, res, next) => {
+  await dbPromise;
+  next();
+});
+
+// Auth Route
+app.post("/api/login", (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const adminUser = process.env.ADMIN_USER || "leclubimmo";
+    const adminPass = process.env.ADMIN_PASS || "LCIF03";
+
+    if (username?.trim() === adminUser && password?.trim() === adminPass) {
+      res.json({ success: true, token: "admin-token" });
+    } else {
+      res.status(401).json({ success: false, message: "Identifiants incorrects" });
     }
   } catch (error) {
-    console.error("Database initialization failed:", error);
+    console.error("Login error:", error);
+    res.status(500).json({ success: false, message: "Erreur serveur lors de la connexion" });
   }
-}
+});
 
-async function startServer() {
-  await initDatabase();
-  const app = express();
-  app.use(express.json());
-
-  // Auth Route
-  app.post("/api/login", (req, res) => {
-    try {
-      const { username, password } = req.body;
-      const adminUser = process.env.ADMIN_USER || "leclubimmo";
-      const adminPass = process.env.ADMIN_PASS || "LCIF03";
-
-      if (username?.trim() === adminUser && password?.trim() === adminPass) {
-        res.json({ success: true, token: "admin-token" });
-      } else {
-        res.status(401).json({ success: false, message: "Identifiants incorrects" });
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ success: false, message: "Erreur serveur lors de la connexion" });
-    }
-  });
-
-  const authMiddleware = (req: any, res: any, next: any) => {
-    const token = req.headers.authorization;
-    if (token === "admin-token") {
-      next();
-    } else {
-      res.status(401).json({ success: false, message: "Non autorisé" });
-    }
-  };
-
-  app.get("/api/links", (req, res) => {
-    if (!db) return res.json([]);
-    const links = db.prepare("SELECT * FROM links ORDER BY order_index ASC").all();
-    res.json(links);
-  });
-
-  app.post("/api/links", authMiddleware, (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
-    const { title, url, image_url, order_index } = req.body;
-    const info = db.prepare("INSERT INTO links (title, url, image_url, order_index) VALUES (?, ?, ?, ?)").run(title, url, image_url || null, order_index || 0);
-    res.json({ id: info.lastInsertRowid, title, url, image_url, order_index });
-  });
-
-  app.put("/api/links/:id", authMiddleware, (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
-    const { id } = req.params;
-    const { title, url, image_url, order_index } = req.body;
-    db.prepare("UPDATE links SET title = ?, url = ?, image_url = ?, order_index = ? WHERE id = ?").run(title, url, image_url || null, order_index, id);
-    res.json({ success: true });
-  });
-
-  app.delete("/api/links/:id", authMiddleware, (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
-    const { id } = req.params;
-    db.prepare("DELETE FROM links WHERE id = ?").run(id);
-    res.json({ success: true });
-  });
-
-  app.get("/api/settings", (req, res) => {
-    if (!db) return res.json({});
-    const settings = db.prepare("SELECT * FROM settings").all();
-    const settingsObj = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
-    res.json(settingsObj);
-  });
-
-  app.put("/api/settings", authMiddleware, (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
-    const { title, bio, profile_image, instagram_url } = req.body;
-    const update = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
-    if (title !== undefined) update.run("title", title);
-    if (bio !== undefined) update.run("bio", bio);
-    if (profile_image !== undefined) update.run("profile_image", profile_image);
-    if (instagram_url !== undefined) update.run("instagram_url", instagram_url);
-    res.json({ success: true });
-  });
-
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+const authMiddleware = (req: any, res: any, next: any) => {
+  const token = req.headers.authorization;
+  if (token === "admin-token") {
+    next();
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    res.status(401).json({ success: false, message: "Non autorisé" });
   }
+};
 
-  const PORT = 3000;
-  if (process.env.NODE_ENV !== "production") {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+app.get("/api/links", (req, res) => {
+  if (!db) return res.status(500).json({ error: "Database not available", details: dbError });
+  const links = db.prepare("SELECT * FROM links ORDER BY order_index ASC").all();
+  res.json(links);
+});
+
+app.post("/api/links", authMiddleware, (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
+  const { title, url, image_url, order_index } = req.body;
+  const info = db.prepare("INSERT INTO links (title, url, image_url, order_index) VALUES (?, ?, ?, ?)").run(title, url, image_url || null, order_index || 0);
+  res.json({ id: info.lastInsertRowid, title, url, image_url, order_index });
+});
+
+app.put("/api/links/:id", authMiddleware, (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
+  const { id } = req.params;
+  const { title, url, image_url, order_index } = req.body;
+  db.prepare("UPDATE links SET title = ?, url = ?, image_url = ?, order_index = ? WHERE id = ?").run(title, url, image_url || null, order_index, id);
+  res.json({ success: true });
+});
+
+app.delete("/api/links/:id", authMiddleware, (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
+  const { id } = req.params;
+  db.prepare("DELETE FROM links WHERE id = ?").run(id);
+  res.json({ success: true });
+});
+
+app.get("/api/settings", (req, res) => {
+  if (!db) return res.status(500).json({ error: "Database not available", details: dbError });
+  const settings = db.prepare("SELECT * FROM settings").all();
+  const settingsObj = settings.reduce((acc: any, curr: any) => {
+    acc[curr.key] = curr.value;
+    return acc;
+  }, {});
+  res.json(settingsObj);
+});
+
+app.put("/api/settings", authMiddleware, (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Base de données non disponible" });
+  const { title, bio, profile_image, instagram_url } = req.body;
+  const update = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+  if (title !== undefined) update.run("title", title);
+  if (bio !== undefined) update.run("bio", bio);
+  if (profile_image !== undefined) update.run("profile_image", profile_image);
+  if (instagram_url !== undefined) update.run("instagram_url", instagram_url);
+  res.json({ success: true });
+});
+
+// Vite middleware for development
+if (process.env.NODE_ENV !== "production") {
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  app.use(vite.middlewares);
   
-  return app;
+  const PORT = 3000;
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
-const app = await startServer();
 export default app;
