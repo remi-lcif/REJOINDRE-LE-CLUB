@@ -211,8 +211,17 @@ function App() {
       await signInWithPopup(auth, provider);
       setIsLoginModalOpen(false);
     } catch (error: any) {
-      setLoginError("Erreur lors de la connexion avec Google");
-      console.error(error);
+      console.error("Firebase Auth Error:", error);
+      // Show more descriptive error message
+      if (error.code === 'auth/popup-blocked') {
+        setLoginError("Le popup de connexion a été bloqué par votre navigateur.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setLoginError("Ce domaine n'est pas autorisé dans votre console Firebase.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setLoginError("La connexion Google n'est pas activée dans votre console Firebase.");
+      } else {
+        setLoginError(error.message || "Erreur lors de la connexion avec Google");
+      }
     }
   };
 
