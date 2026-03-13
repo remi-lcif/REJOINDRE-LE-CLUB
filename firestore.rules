@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "remi@leclubimmobilier.fr" && request.auth.token.email_verified == true));
+    }
+
+    function isValidLink(data) {
+      return data.keys().hasAll(['title', 'url', 'order_index']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.url is string && data.url.size() > 0 && data.url.size() < 1000 &&
+             data.order_index is number;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAny(['title', 'bio', 'profile_image', 'instagram_url', 'linkedin_url']) &&
+             (!('title' in data) || (data.title is string && data.title.size() < 100)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
+             (!('profile_image' in data) || (data.profile_image is string && data.profile_image.size() < 1000)) &&
+             (!('instagram_url' in data) || (data.instagram_url is string && data.instagram_url.size() < 1000)) &&
+             (!('linkedin_url' in data) || (data.linkedin_url is string && data.linkedin_url.size() < 1000));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /links/{linkId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidLink(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /settings/config {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+  }
+}
