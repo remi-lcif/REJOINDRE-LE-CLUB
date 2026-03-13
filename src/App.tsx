@@ -15,7 +15,9 @@ import {
   ChevronDown,
   LogOut,
   MoreVertical,
-  DoorOpen
+  DoorOpen,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { DEFAULT_LINKS, DEFAULT_SETTINGS, type Link, type SettingsData } from './constants';
 import { auth, db } from './firebase';
@@ -112,6 +114,8 @@ function App() {
   const [newLinkForm, setNewLinkForm] = useState({ title: '', url: '', image_url: '' });
   const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState<SettingsData>(settings);
+  const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  const [isLoading, setIsLoading] = useState<string | number | boolean | null>(null);
 
   // Firestore Error Handler
   const handleFirestoreError = (error: any, operation: OperationType, path: string) => {
@@ -134,8 +138,20 @@ function App() {
       }
     };
     console.error('Firestore Error:', JSON.stringify(errInfo));
-    throw new Error(JSON.stringify(errInfo));
+    setNotification({ 
+      message: `Erreur (${operation}): ${error.message || 'Permission refusée'}`, 
+      type: 'error' 
+    });
+    // Don't throw, just log and notify
   };
+
+  // Auto-hide notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Connection Test
   useEffect(() => {
@@ -157,7 +173,7 @@ function App() {
       setUser(currentUser);
       setIsAuthReady(true);
       // Admin check: remi@leclubimmobilier.fr
-      if (currentUser && currentUser.email === 'remi@leclubimmobilier.fr' && currentUser.emailVerified) {
+      if (currentUser && currentUser.email === 'remi@leclubimmobilier.fr') {
         setIsAdmin(true);
       } else {
         setIsAdmin(false);
@@ -177,9 +193,7 @@ function App() {
         ...doc.data()
       })) as unknown as Link[];
       
-      if (linksData.length > 0) {
-        setLinks(linksData);
-      }
+      setLinks(linksData);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'links');
     });
@@ -234,9 +248,13 @@ function App() {
   };
 
   const handleAddLink = async () => {
-    if (!newLinkForm.title || !newLinkForm.url) return;
+    if (!newLinkForm.title || !newLinkForm.url) {
+      setNotification({ message: 'Le titre et l\'URL sont obligatoires.', type: 'error' });
+      return;
+    }
     
     const path = 'links';
+    setIsLoading(true);
     try {
       await addDoc(collection(db, path), {
         ...newLinkForm,
@@ -244,18 +262,32 @@ function App() {
       });
       setIsAdding(false);
       setNewLinkForm({ title: '', url: '', image_url: '' });
+      setNotification({ message: 'Lien ajouté avec succès !', type: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
+    } finally {
+      setIsLoading(null);
     }
   };
 
   const handleUpdateLink = async (id: string | number) => {
+    if (!editForm.title || !editForm.url) {
+      setNotification({ message: 'Le titre et l\'URL sont obligatoires.', type: 'error' });
+      return;
+    }
+    console.log('Attempting to update link:', id, editForm);
     const path = `links/${id}`;
+    setIsLoading(id);
     try {
       await updateDoc(doc(db, 'links', String(id)), editForm);
+      console.log('Link updated successfully');
       setIsEditing(null);
+      setNotification({ message: 'Lien mis à jour !', type: 'success' });
     } catch (error) {
+      console.error('Error updating link:', error);
       handleFirestoreError(error, OperationType.UPDATE, path);
+    } finally {
+      setIsLoading(null);
     }
   };
 
@@ -271,12 +303,19 @@ function App() {
   };
 
   const handleUpdateSettings = async () => {
+    console.log('Attempting to update settings:', settingsForm);
     const path = 'settings/config';
+    setIsLoading('settings');
     try {
       await setDoc(doc(db, 'settings', 'config'), settingsForm, { merge: true });
+      console.log('Settings updated successfully');
       setIsEditingSettings(false);
+      setNotification({ message: 'Paramètres enregistrés !', type: 'success' });
     } catch (error) {
+      console.error('Error updating settings:', error);
       handleFirestoreError(error, OperationType.WRITE, path);
+    } finally {
+      setIsLoading(null);
     }
   };
 
@@ -300,13 +339,46 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#e8eff9] text-[#1a3a6c] font-sans selection:bg-[#1a3a6c] selection:text-white">
+        {/* Notifications */}
+        <AnimatePresence>
+          {notification && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-lg text-white font-medium flex items-center gap-3 ${
+                notification.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+            >
+              {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+              {notification.message}
+              <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Admin Toggle */}
-        <button 
-          onClick={() => isAdmin ? handleLogout() : setIsLoginModalOpen(true)}
-          className="fixed bottom-4 right-4 p-3 bg-white/80 backdrop-blur-md border border-black/5 rounded-full shadow-lg hover:bg-white transition-all z-50 text-[#1a3a6c]"
-        >
-          {isAdmin ? <LogOut className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
-        </button>
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+          {isAdmin && (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm uppercase tracking-wider"
+            >
+              Mode Admin Actif
+            </motion.div>
+          )}
+          <button 
+            onClick={() => isAdmin ? handleLogout() : setIsLoginModalOpen(true)}
+            className={`p-4 rounded-full shadow-lg transition-all hover:scale-110 active:scale-95 ${
+              isAdmin ? 'bg-red-500 text-white' : 'bg-white text-[#1a3a6c]'
+            }`}
+          >
+            {isAdmin ? <LogOut className="w-6 h-6" /> : <Settings className="w-6 h-6" />}
+          </button>
+        </div>
 
         <main className="max-w-xl mx-auto px-6 py-12 flex flex-col items-center">
           {/* Profile Section */}
@@ -398,7 +470,17 @@ function App() {
                       />
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setIsEditing(null)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                        <button onClick={() => handleUpdateLink(link.id)} className="p-2 text-[#1a3a6c] hover:text-[#0a2a5c]"><Save className="w-4 h-4" /></button>
+                        <button 
+                          onClick={() => handleUpdateLink(link.id)} 
+                          disabled={isLoading === link.id}
+                          className="p-2 text-[#1a3a6c] hover:text-[#0a2a5c] disabled:opacity-50"
+                        >
+                          {isLoading === link.id ? (
+                            <div className="w-4 h-4 border-2 border-[#1a3a6c] border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -491,7 +573,14 @@ function App() {
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
                       <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">Annuler</button>
-                      <button onClick={handleAddLink} className="px-6 py-2 bg-[#1a3a6c] text-white rounded-lg text-sm font-medium hover:bg-[#0a2a5c] transition-colors">Ajouter</button>
+                      <button 
+                        onClick={handleAddLink} 
+                        disabled={isLoading === true}
+                        className="px-6 py-2 bg-[#1a3a6c] text-white rounded-lg text-sm font-medium hover:bg-[#0a2a5c] transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {isLoading === true && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                        Ajouter
+                      </button>
                     </div>
                   </motion.div>
                 ) : (
@@ -636,8 +725,10 @@ function App() {
 
                 <button 
                   onClick={handleUpdateSettings}
-                  className="w-full py-4 bg-[#1a3a6c] text-white rounded-xl font-bold hover:bg-[#0a2a5c] transition-all"
+                  disabled={isLoading === 'settings'}
+                  className="w-full py-4 bg-[#1a3a6c] text-white rounded-xl font-bold hover:bg-[#0a2a5c] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
+                  {isLoading === 'settings' && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   Enregistrer les modifications
                 </button>
               </motion.div>
