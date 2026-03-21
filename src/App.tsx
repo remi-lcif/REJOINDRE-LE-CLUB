@@ -175,8 +175,8 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAuthReady(true);
-      // Admin check: remi@leclubimmobilier.fr
-      if (currentUser && currentUser.email === 'remi@leclubimmobilier.fr') {
+      // Admin check: any @leclubimmobilier.fr email
+      if (currentUser && currentUser.email?.toLowerCase().endsWith('@leclubimmobilier.fr')) {
         setIsAdmin(true);
       } else {
         setIsAdmin(false);
@@ -628,6 +628,14 @@ function App() {
             </>
           )}
         </main>
+
+        {/* Admin Badge */}
+        {isAdmin && (
+          <div className="fixed bottom-4 right-4 px-3 py-1 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg z-50 flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+            Mode Admin Actif
+          </div>
+        )}
 
         {/* Login Modal */}
         <AnimatePresence>
