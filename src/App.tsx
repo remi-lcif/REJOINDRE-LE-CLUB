@@ -116,6 +116,7 @@ function App() {
   const [settingsForm, setSettingsForm] = useState<SettingsData>(settings);
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [isLoading, setIsLoading] = useState<string | number | boolean | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<string | number | null>(null);
 
   // Firestore Error Handler
   const handleFirestoreError = (error: any, operation: OperationType, path: string) => {
@@ -253,6 +254,7 @@ function App() {
       return;
     }
     
+    console.log('Attempting to add link:', newLinkForm);
     const path = 'links';
     setIsLoading(true);
     try {
@@ -260,10 +262,12 @@ function App() {
         ...newLinkForm,
         order_index: links.length
       });
+      console.log('Link added successfully');
       setIsAdding(false);
       setNewLinkForm({ title: '', url: '', image_url: '' });
       setNotification({ message: 'Lien ajouté avec succès !', type: 'success' });
     } catch (error) {
+      console.error('Error adding link:', error);
       handleFirestoreError(error, OperationType.CREATE, path);
     } finally {
       setIsLoading(null);
@@ -292,13 +296,19 @@ function App() {
   };
 
   const handleDeleteLink = async (id: string | number) => {
-    if (!confirm('Supprimer ce lien ?')) return;
-    
+    console.log('Attempting to delete link:', id);
     const path = `links/${id}`;
+    setIsLoading(id);
     try {
       await deleteDoc(doc(db, 'links', String(id)));
+      console.log('Link deleted successfully');
+      setDeleteConfirmation(null);
+      setNotification({ message: 'Lien supprimé !', type: 'success' });
     } catch (error) {
+      console.error('Error deleting link:', error);
       handleFirestoreError(error, OperationType.DELETE, path);
+    } finally {
+      setIsLoading(null);
     }
   };
 
@@ -526,7 +536,7 @@ function App() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => handleDeleteLink(link.id)}
+                            onClick={() => setDeleteConfirmation(link.id)}
                             className="p-3 bg-white border border-black/5 rounded-lg text-gray-400 hover:text-red-500 hover:shadow-sm transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -731,6 +741,50 @@ function App() {
                   {isLoading === 'settings' && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   Enregistrer les modifications
                 </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        {/* Delete Confirmation Modal */}
+        <AnimatePresence>
+          {deleteConfirmation && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setDeleteConfirmation(null)}
+                className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 space-y-6 text-center"
+              >
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+                  <Trash2 className="w-8 h-8 text-red-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Supprimer ce lien ?</h2>
+                  <p className="text-sm text-gray-500 mt-2">Cette action est irréversible.</p>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setDeleteConfirmation(null)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteLink(deleteConfirmation)}
+                    disabled={isLoading === deleteConfirmation}
+                    className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isLoading === deleteConfirmation && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                    Supprimer
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}
