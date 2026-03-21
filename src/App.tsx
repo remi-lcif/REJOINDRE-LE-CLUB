@@ -101,8 +101,10 @@ enum OperationType {
 }
 
 function App() {
-  const [links, setLinks] = useState<Link[]>(DEFAULT_LINKS);
+  const [links, setLinks] = useState<Link[]>([]);
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const [hasLoadedLinks, setHasLoadedLinks] = useState(false);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -195,8 +197,10 @@ function App() {
       })) as unknown as Link[];
       
       setLinks(linksData);
+      setHasLoadedLinks(true);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'links');
+      setHasLoadedLinks(true);
     });
 
     return () => unsubscribe();
@@ -212,8 +216,10 @@ function App() {
         setSettings(data);
         setSettingsForm(data);
       }
+      setHasLoadedSettings(true);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'settings/config');
+      setHasLoadedSettings(true);
     });
 
     return () => unsubscribe();
@@ -391,7 +397,14 @@ function App() {
         </div>
 
         <main className="max-w-xl mx-auto px-6 py-12 flex flex-col items-center">
-          {/* Profile Section */}
+          {(!hasLoadedLinks || !hasLoadedSettings) ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-12 h-12 border-4 border-[#1a3a6c] border-t-transparent rounded-full animate-spin" />
+              <p className="text-[#1a3a6c] font-medium animate-pulse">Chargement...</p>
+            </div>
+          ) : (
+            <>
+              {/* Profile Section */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -612,6 +625,8 @@ function App() {
               © {new Date().getFullYear()} Le Club Immobilier Français
             </p>
           </footer>
+            </>
+          )}
         </main>
 
         {/* Login Modal */}
