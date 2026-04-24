@@ -131,21 +131,23 @@ function App() {
         email: auth.currentUser?.email,
         emailVerified: auth.currentUser?.emailVerified,
         isAnonymous: auth.currentUser?.isAnonymous,
-        tenantId: auth.currentUser?.tenantId,
         providerInfo: auth.currentUser?.providerData.map(p => ({
           providerId: p.providerId,
-          displayName: p.displayName,
           email: p.email,
-          photoUrl: p.photoURL
         })) || []
       }
     };
-    console.error('Firestore Error:', JSON.stringify(errInfo));
+    console.error('Detailed Firestore Error Info:', JSON.stringify(errInfo, null, 2));
+    
+    let userMessage = error.message || 'Permission refusée';
+    if (userMessage.includes('insufficient permissions')) {
+      userMessage = "Vous n'avez pas les permissions nécessaires. Vérifiez que vous êtes connecté avec un compte @leclubimmobilier.fr";
+    }
+
     setNotification({ 
-      message: `Erreur (${operation}): ${error.message || 'Permission refusée'}`, 
+      message: `Erreur (${operation}): ${userMessage}`, 
       type: 'error' 
     });
-    // Don't throw, just log and notify
   };
 
   // Auto-hide notification
@@ -160,15 +162,24 @@ function App() {
   useEffect(() => {
     async function testConnection() {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
+        console.log("Testing connection to Firestore...");
+        console.log("Project ID:", auth.app.options.projectId);
+        console.log("Database ID:", (db as any)._databaseId?.database || 'default');
+        
+        // Use getDocFromServer to force a server check
+        await getDocFromServer(doc(db, '_connection_test_', 'ping'));
+        console.log("Firestore Connection: SUCCESS");
       } catch (error: any) {
+        console.warn("Firestore Connection Test:", error.message);
         if (error.message?.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
+          setNotification({ message: "La base de données semble hors ligne ou mal configurée.", type: 'error' });
         }
       }
     }
-    testConnection();
-  }, []);
+    if (isAuthReady) {
+      testConnection();
+    }
+  }, [isAuthReady]);
 
   // Auth Listener
   useEffect(() => {
@@ -285,16 +296,18 @@ function App() {
       setNotification({ message: 'Le titre et l\'URL sont obligatoires.', type: 'error' });
       return;
     }
-    console.log('Attempting to update link:', id, editForm);
+    console.log('Attempting to update link:', id, 'with data:', editForm);
     const path = `links/${id}`;
     setIsLoading(id);
     try {
-      await updateDoc(doc(db, 'links', String(id)), editForm);
-      console.log('Link updated successfully');
+      const docRef = doc(db, 'links', String(id));
+      console.log('Document reference:', docRef.path);
+      await updateDoc(docRef, editForm);
+      console.log('Link updated successfully in Firestore');
       setIsEditing(null);
       setNotification({ message: 'Lien mis à jour !', type: 'success' });
     } catch (error) {
-      console.error('Error updating link:', error);
+      console.error('Error updating link in Firestore:', error);
       handleFirestoreError(error, OperationType.UPDATE, path);
     } finally {
       setIsLoading(null);
@@ -319,16 +332,18 @@ function App() {
   };
 
   const handleUpdateSettings = async () => {
-    console.log('Attempting to update settings:', settingsForm);
+    console.log('Attempting to update settings with data:', settingsForm);
     const path = 'settings/config';
     setIsLoading('settings');
     try {
-      await setDoc(doc(db, 'settings', 'config'), settingsForm, { merge: true });
-      console.log('Settings updated successfully');
+      const docRef = doc(db, 'settings', 'config');
+      console.log('Settings document reference:', docRef.path);
+      await setDoc(docRef, settingsForm, { merge: true });
+      console.log('Settings updated successfully in Firestore');
       setIsEditingSettings(false);
       setNotification({ message: 'Paramètres enregistrés !', type: 'success' });
     } catch (error) {
-      console.error('Error updating settings:', error);
+      console.error('Error updating settings in Firestore:', error);
       handleFirestoreError(error, OperationType.WRITE, path);
     } finally {
       setIsLoading(null);
