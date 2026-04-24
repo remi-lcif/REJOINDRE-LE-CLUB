@@ -184,10 +184,11 @@ function App() {
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("Auth State Changed:", currentUser?.email);
       setUser(currentUser);
       setIsAuthReady(true);
-      // Admin check: any @leclubimmobilier.fr email
-      if (currentUser && currentUser.email?.toLowerCase().endsWith('@leclubimmobilier.fr')) {
+      // Admin check: any @leclubimmobilier.fr email or specific remi email
+      if (currentUser && (currentUser.email?.toLowerCase().endsWith('@leclubimmobilier.fr') || currentUser.email === 'remi@leclubimmobilier.fr')) {
         setIsAdmin(true);
       } else {
         setIsAdmin(false);
@@ -271,20 +272,23 @@ function App() {
       return;
     }
     
-    console.log('Attempting to add link:', newLinkForm);
+    const dbId = (db as any)._databaseId?.database || 'default';
+    console.log('Attempting to add link to database:', dbId);
+    console.log('Link data being sent:', JSON.stringify(newLinkForm, null, 2));
     const path = 'links';
     setIsLoading(true);
     try {
-      await addDoc(collection(db, path), {
+      const docRef = await addDoc(collection(db, path), {
         ...newLinkForm,
-        order_index: links.length
+        order_index: links.length,
+        updated_at: new Date().toISOString()
       });
-      console.log('Link added successfully');
+      console.log('SUCCESS: Link added with ID:', docRef.id);
       setIsAdding(false);
       setNewLinkForm({ title: '', url: '', image_url: '' });
       setNotification({ message: 'Lien ajouté avec succès !', type: 'success' });
-    } catch (error) {
-      console.error('Error adding link:', error);
+    } catch (error: any) {
+      console.error('FAILED to add link:', error);
       handleFirestoreError(error, OperationType.CREATE, path);
     } finally {
       setIsLoading(null);
@@ -296,18 +300,23 @@ function App() {
       setNotification({ message: 'Le titre et l\'URL sont obligatoires.', type: 'error' });
       return;
     }
-    console.log('Attempting to update link:', id, 'with data:', editForm);
+    const dbId = (db as any)._databaseId?.database || 'default';
+    console.log('Attempting to update link ID:', id, 'in database:', dbId);
+    console.log('Update data being sent:', JSON.stringify(editForm, null, 2));
     const path = `links/${id}`;
     setIsLoading(id);
     try {
       const docRef = doc(db, 'links', String(id));
-      console.log('Document reference:', docRef.path);
-      await updateDoc(docRef, editForm);
-      console.log('Link updated successfully in Firestore');
+      console.log('Full document path:', docRef.path);
+      await updateDoc(docRef, {
+        ...editForm,
+        updated_at: new Date().toISOString()
+      });
+      console.log('SUCCESS: Link updated in Firestore');
       setIsEditing(null);
       setNotification({ message: 'Lien mis à jour !', type: 'success' });
-    } catch (error) {
-      console.error('Error updating link in Firestore:', error);
+    } catch (error: any) {
+      console.error('FAILED to update link:', error);
       handleFirestoreError(error, OperationType.UPDATE, path);
     } finally {
       setIsLoading(null);
