@@ -273,8 +273,9 @@ function App() {
     }
     
     const dbId = (db as any)._databaseId?.database || 'default';
-    console.log('Attempting to add link to database:', dbId);
-    console.log('Link data being sent:', JSON.stringify(newLinkForm, null, 2));
+    console.log('--- DEBUT AJOUT LIEN ---');
+    console.log('Base de données:', dbId);
+    console.log('Données envoyées:', JSON.stringify(newLinkForm, null, 2));
     const path = 'links';
     setIsLoading(true);
     try {
@@ -283,12 +284,13 @@ function App() {
         order_index: links.length,
         updated_at: new Date().toISOString()
       });
-      console.log('SUCCESS: Link added with ID:', docRef.id);
+      console.log('SUCCÈS: Lien ajouté avec l\'ID:', docRef.id);
+      console.log('------------------------');
       setIsAdding(false);
       setNewLinkForm({ title: '', url: '', image_url: '' });
       setNotification({ message: 'Lien ajouté avec succès !', type: 'success' });
     } catch (error: any) {
-      console.error('FAILED to add link:', error);
+      console.error('ERREUR lors de l\'ajout:', error);
       handleFirestoreError(error, OperationType.CREATE, path);
     } finally {
       setIsLoading(null);
@@ -301,22 +303,35 @@ function App() {
       return;
     }
     const dbId = (db as any)._databaseId?.database || 'default';
-    console.log('Attempting to update link ID:', id, 'in database:', dbId);
-    console.log('Update data being sent:', JSON.stringify(editForm, null, 2));
+    console.log('--- DEBUT MISE À JOUR LIEN ---');
+    console.log('ID du document:', id);
+    console.log('Base de données:', dbId);
+    console.log('Données de mise à jour:', JSON.stringify(editForm, null, 2));
     const path = `links/${id}`;
     setIsLoading(id);
     try {
       const docRef = doc(db, 'links', String(id));
-      console.log('Full document path:', docRef.path);
+      console.log('Chemin complet du document:', docRef.path);
+      
+      // Ensure URL has protocol
+      let finalUrl = editForm.url;
+      if (!finalUrl.startsWith('http')) {
+        finalUrl = 'https://' + finalUrl;
+      }
+
       await updateDoc(docRef, {
         ...editForm,
+        url: finalUrl,
         updated_at: new Date().toISOString()
       });
-      console.log('SUCCESS: Link updated in Firestore');
+      
+      console.log('SUCCÈS: Mise à jour terminée dans Firestore');
+      console.log('------------------------------');
+      
       setIsEditing(null);
-      setNotification({ message: 'Lien mis à jour !', type: 'success' });
+      setNotification({ message: 'Lien mis à jour avec succès !', type: 'success' });
     } catch (error: any) {
-      console.error('FAILED to update link:', error);
+      console.error('ERREUR lors de la mise à jour:', error);
       handleFirestoreError(error, OperationType.UPDATE, path);
     } finally {
       setIsLoading(null);
